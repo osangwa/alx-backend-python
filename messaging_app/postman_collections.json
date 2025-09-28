@@ -1,0 +1,222 @@
+{
+  "info": {
+    "name": "Messaging App API",
+    "description": "API collection for testing the messaging application",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Get JWT Token",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/token/",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["api", "token", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh JWT Token",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"your-refresh-token-here\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/token/refresh/",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["api", "token", "refresh", ""]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Conversations",
+      "item": [
+        {
+          "name": "Create Conversation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"participant_ids\": [\"user-uuid-1\", \"user-uuid-2\"],\n  \"initial_message\": \"Hello!\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/conversations/",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["api", "conversations", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Conversations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/api/conversations/",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["api", "conversations", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Send Message to Conversation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message_body\": \"This is a test message\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/conversations/{{conversation_id}}/send_message/",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["api", "conversations", "{{conversation_id}}", "send_message", ""]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Conversation Messages",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/api/conversations/{{conversation_id}}/messages/",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["api", "conversations", "{{conversation_id}}", "messages", ""]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Messages",
+      "item": [
+        {
+          "name": "List Messages with Filtering",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/api/messages/?conversation={{conversation_id}}&sent_after=2024-01-01T00:00:00Z",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["api", "messages", ""],
+              "query": [
+                {
+                  "key": "conversation",
+                  "value": "{{conversation_id}}"
+                },
+                {
+                  "key": "sent_after",
+                  "value": "2024-01-01T00:00:00Z"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Message Directly",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"conversation_id\": \"{{conversation_id}}\",\n  \"message_body\": \"Direct message creation\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/messages/",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["api", "messages", ""]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "jwt_token",
+      "value": "your-jwt-token-here",
+      "type": "string"
+    },
+    {
+      "key": "conversation_id",
+      "value": "conversation-uuid-here",
+      "type": "string"
+    }
+  ]
+}

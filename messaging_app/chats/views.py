@@ -1,8 +1,8 @@
-# messaging_app/chats/views.py
+# chats/views.py
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.shortcuts import get_object_or_404
+from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Conversation, Message, User
 from .serializers import (
@@ -10,21 +10,42 @@ from .serializers import (
     ConversationCreateSerializer, MessageCreateSerializer,
     UserSerializer, ConversationDetailSerializer
 )
+from .permissions import IsParticipantOfConversation, IsMessageOwnerOrParticipant, IsOwnerOrReadOnly
+from .pagination import MessagePagination
+
+# Import filters conditionally to avoid circular imports
+try:
+    from .filters import MessageFilter, ConversationFilter
+except ImportError:
+    MessageFilter = None
+    ConversationFilter = None
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
     search_fields = ['first_name', 'last_name', 'email']
     ordering_fields = ['first_name', 'last_name', 'created_at']
     filterset_fields = ['role']
+    
+    def get_queryset(self):
+        # Users can only see their own profile by default
+        if self.action == 'list':
+            return User.objects.filter(user_id=self.request.user.user_id)
+        return User.objects.all()
 
 class ConversationViewSet(viewsets.ModelViewSet):
-    queryset = Conversation.objects.all()
+    serializer_class = ConversationSerializer
+    permission_classes = [IsAuthenticated, IsParticipantOfConversation]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
     search_fields = ['participants__first_name', 'participants__last_name', 'participants__email']
     ordering_fields = ['created_at']
-    filterset_fields = ['participants__user_id']
+    
+    # Set filterset_class conditionally
+    @property
+    def filterset_class(self):
+        return ConversationFilter if ConversationFilter else None
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -34,11 +55,8 @@ class ConversationViewSet(viewsets.ModelViewSet):
         return ConversationSerializer
     
     def get_queryset(self):
-        # Filter conversations for specific user if user_id is provided
-        user_id = self.request.query_params.get('user_id')
-        if user_id:
-            return Conversation.objects.filter(participants__user_id=user_id).distinct()
-        return Conversation.objects.all()
+        # Users can only see conversations they are participating in
+        return Conversation.objects.filter(participants=self.request.user)
     
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -52,15 +70,34 @@ class ConversationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        conversation = serializer.save()
+        # Add the current user to participants if not already included
+        if request.user.user_id not in participant_ids:
+            participant_ids.append(request.user.user_id)
+        
+        # Check if all users exist
+        users = []
+        for user_id in participant_ids:
+            try:
+                user = User.objects.get(user_id=user_id)
+                users.append(user)
+            except User.DoesNotExist:
+                return Response(
+                    {'error': f'User with ID {user_id} does not exist'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Create the conversation
+        conversation = Conversation.objects.create()
+        
+        # Add participants to the conversation
+        for user in users:
+            conversation.participants.add(user)
         
         # If there's an initial message, create it
-        initial_message = serializer.validated_data.get('initial_message')
+        initial_message = serializer.validated_data.get('initial_message', '')
         if initial_message:
-            # Use the first participant as sender for the initial message
-            sender = User.objects.get(user_id=participant_ids[0])
             Message.objects.create(
-                sender=sender,
+                sender=request.user,
                 conversation=conversation,
                 message_body=initial_message
             )
@@ -69,25 +106,20 @@ class ConversationViewSet(viewsets.ModelViewSet):
         full_serializer = ConversationSerializer(conversation, context={'request': request})
         return Response(full_serializer.data, status=status.HTTP_201_CREATED)
     
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsParticipantOfConversation])
     def send_message(self, request, pk=None):
         """Send a message to an existing conversation"""
         conversation = self.get_object()
         serializer = MessageCreateSerializer(data=request.data)
         
         if serializer.is_valid():
-            # Check if sender is a participant in the conversation
-            sender_id = serializer.validated_data['sender_id']
-            if not conversation.participants.filter(user_id=sender_id).exists():
-                return Response(
-                    {'error': 'Sender is not a participant in this conversation'}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            message_body = serializer.validated_data.get('message_body')
             
+            # Create the message with current user as sender
             message = Message.objects.create(
-                sender=User.objects.get(user_id=sender_id),
+                sender=request.user,
                 conversation=conversation,
-                message_body=serializer.validated_data['message_body']
+                message_body=message_body
             )
             
             message_serializer = MessageSerializer(message)
@@ -95,33 +127,30 @@ class ConversationViewSet(viewsets.ModelViewSet):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated, IsParticipantOfConversation])
     def messages(self, request, pk=None):
         """Get all messages for a specific conversation"""
         conversation = self.get_object()
         messages = conversation.messages.all()
         
-        # Apply filtering and ordering
-        message_filter = filters.SearchFilter()
-        filtered_queryset = message_filter.filter_queryset(request, messages, self)
-        
         # Apply pagination
-        page = self.paginate_queryset(filtered_queryset)
-        if page is not None:
-            serializer = MessageSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        
-        serializer = MessageSerializer(filtered_queryset, many=True)
-        return Response(serializer.data)
+        paginator = MessagePagination()
+        paginated_messages = paginator.paginate_queryset(messages, request, view=self)
+        serializer = MessageSerializer(paginated_messages, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
-
-    # In chats/views.py, update MessageViewSet to handle nested routes
 class MessageViewSet(viewsets.ModelViewSet):
-    queryset = Message.objects.all()
+    serializer_class = MessageSerializer
+    permission_classes = [IsAuthenticated, IsMessageOwnerOrParticipant]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
     search_fields = ['message_body', 'sender__first_name', 'sender__last_name']
     ordering_fields = ['sent_at']
-    filterset_fields = ['sender__user_id', 'conversation__conversation_id']
+    pagination_class = MessagePagination
+    
+    # Set filterset_class conditionally
+    @property
+    def filterset_class(self):
+        return MessageFilter if MessageFilter else None
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -129,25 +158,21 @@ class MessageViewSet(viewsets.ModelViewSet):
         return MessageSerializer
     
     def get_queryset(self):
-        queryset = Message.objects.all()
-        
-        # Handle nested routing - get messages for specific conversation
-        conversation_id = self.kwargs.get('conversation_pk')
-        if conversation_id:
-            queryset = queryset.filter(conversation__conversation_id=conversation_id)
-        
-        # Filter by sender_id if provided
-        sender_id = self.request.query_params.get('sender_id')
-        if sender_id:
-            queryset = queryset.filter(sender__user_id=sender_id)
-            
-        return queryset
+        # Users can only see messages from conversations they are participating in
+        user_conversations = Conversation.objects.filter(participants=self.request.user)
+        return Message.objects.filter(conversation__in=user_conversations)
     
     def perform_create(self, serializer):
-        # Handle nested creation - automatically set conversation from URL
-        conversation_id = self.kwargs.get('conversation_pk')
-        if conversation_id:
-            conversation = Conversation.objects.get(conversation_id=conversation_id)
-            serializer.save(conversation=conversation)
-        else:
-            serializer.save()
+        # Automatically set the sender to the current user
+        serializer.save(sender=self.request.user)
+    
+    @action(detail=False, methods=['get'])
+    def recent(self, request):
+        """Get recent messages with pagination"""
+        recent_messages = self.get_queryset().order_by('-sent_at')
+        
+        # Apply pagination
+        paginator = MessagePagination()
+        paginated_messages = paginator.paginate_queryset(recent_messages, request, view=self)
+        serializer = MessageSerializer(paginated_messages, many=True)
+        return paginator.get_paginated_response(serializer.data)

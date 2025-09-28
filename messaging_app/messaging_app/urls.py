@@ -17,9 +17,27 @@ Including another URLconf
 # messaging_app/urls.py
 from django.contrib import admin
 from django.urls import path, include
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', include('chats.urls')),  # Include your created routes with path as api
-    path('api-auth/', include('rest_framework.urls')),  # Add Django REST framework auth URLs
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
+
+# Only include chats URLs if the app exists
+try:
+    from chats import urls as chats_urls
+    urlpatterns.append(path('api/', include('chats.urls')))
+except ImportError:
+    pass
+
+# Only include auth URLs if rest_framework is installed
+try:
+    from rest_framework.urls import urlpatterns as auth_urls
+    urlpatterns.append(path('api/auth/', include('rest_framework.urls')))
+except ImportError:
+    pass
