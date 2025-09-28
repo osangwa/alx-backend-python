@@ -21,7 +21,7 @@ except ImportError:
     ConversationFilter = None
 
 class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.all()  # Add this line
+    queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
@@ -36,7 +36,7 @@ class UserViewSet(viewsets.ModelViewSet):
         return User.objects.all()
 
 class ConversationViewSet(viewsets.ModelViewSet):
-    queryset = Conversation.objects.all()  # Add this line
+    queryset = Conversation.objects.all()
     serializer_class = ConversationSerializer
     permission_classes = [IsAuthenticated, IsParticipantOfConversation]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
@@ -139,9 +139,37 @@ class ConversationViewSet(viewsets.ModelViewSet):
         paginated_messages = paginator.paginate_queryset(messages, request, view=self)
         serializer = MessageSerializer(paginated_messages, many=True)
         return paginator.get_paginated_response(serializer.data)
+    
+    def update(self, request, *args, **kwargs):
+        """Override update to check conversation_id and return 403 if not participant"""
+        conversation = self.get_object()
+        conversation_id = conversation.conversation_id
+        
+        # Check if user is participant (permission class should handle this, but double-check)
+        if not conversation.participants.filter(user_id=request.user.user_id).exists():
+            return Response(
+                {'error': 'You are not a participant of this conversation'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        return super().update(request, *args, **kwargs)
+    
+    def destroy(self, request, *args, **kwargs):
+        """Override destroy to check conversation_id and return 403 if not participant"""
+        conversation = self.get_object()
+        conversation_id = conversation.conversation_id
+        
+        # Check if user is participant (permission class should handle this, but double-check)
+        if not conversation.participants.filter(user_id=request.user.user_id).exists():
+            return Response(
+                {'error': 'You are not a participant of this conversation'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        return super().destroy(request, *args, **kwargs)
 
 class MessageViewSet(viewsets.ModelViewSet):
-    queryset = Message.objects.all()  # Add this line
+    queryset = Message.objects.all()
     serializer_class = MessageSerializer
     permission_classes = [IsAuthenticated, IsMessageOwnerOrParticipant]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
@@ -167,6 +195,34 @@ class MessageViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         # Automatically set the sender to the current user
         serializer.save(sender=self.request.user)
+    
+    def update(self, request, *args, **kwargs):
+        """Override update to check conversation_id and return 403 if not owner"""
+        message = self.get_object()
+        conversation_id = message.conversation.conversation_id
+        
+        # Check if user is the message owner
+        if message.sender != request.user:
+            return Response(
+                {'error': 'You can only update your own messages'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        return super().update(request, *args, **kwargs)
+    
+    def destroy(self, request, *args, **kwargs):
+        """Override destroy to check conversation_id and return 403 if not owner"""
+        message = self.get_object()
+        conversation_id = message.conversation.conversation_id
+        
+        # Check if user is the message owner
+        if message.sender != request.user:
+            return Response(
+                {'error': 'You can only delete your own messages'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        return super().destroy(request, *args, **kwargs)
     
     @action(detail=False, methods=['get'])
     def recent(self, request):
