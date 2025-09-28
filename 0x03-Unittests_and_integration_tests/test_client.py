@@ -119,8 +119,8 @@ class TestIntegrationGithubOrgClient(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Set up test fixtures before any tests are run"""
-        # Patch requests.get at the utils module level since get_json uses it
-        cls.get_patcher = patch('utils.requests.get')
+        # Patch requests.get directly since that's what get_json uses
+        cls.get_patcher = patch('requests.get')
         cls.mock_get = cls.get_patcher.start()
 
         def side_effect(url):
@@ -134,7 +134,7 @@ class TestIntegrationGithubOrgClient(unittest.TestCase):
 
             if "orgs/google" in url:
                 return MockResponse(cls.org_payload)
-            elif "repos" in url and "google" in url:
+            elif "repos" in url:
                 return MockResponse(cls.repos_payload)
             return MockResponse({})
 
