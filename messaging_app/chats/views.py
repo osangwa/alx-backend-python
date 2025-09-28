@@ -114,6 +114,8 @@ class ConversationViewSet(viewsets.ModelViewSet):
         serializer = MessageSerializer(filtered_queryset, many=True)
         return Response(serializer.data)
 
+
+    # In chats/views.py, update MessageViewSet to handle nested routes
 class MessageViewSet(viewsets.ModelViewSet):
     queryset = Message.objects.all()
     filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
@@ -129,8 +131,8 @@ class MessageViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = Message.objects.all()
         
-        # Filter by conversation_id if provided
-        conversation_id = self.request.query_params.get('conversation_id')
+        # Handle nested routing - get messages for specific conversation
+        conversation_id = self.kwargs.get('conversation_pk')
         if conversation_id:
             queryset = queryset.filter(conversation__conversation_id=conversation_id)
         
@@ -141,24 +143,11 @@ class MessageViewSet(viewsets.ModelViewSet):
             
         return queryset
     
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        message = serializer.save()
-        full_serializer = MessageSerializer(message)
-        return Response(full_serializer.data, status=status.HTTP_201_CREATED)
-    
-    @action(detail=False, methods=['get'])
-    def recent(self, request):
-        """Get recent messages with pagination"""
-        recent_messages = Message.objects.all().order_by('-sent_at')
-        
-        # Apply pagination
-        page = self.paginate_queryset(recent_messages)
-        if page is not None:
-            serializer = MessageSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        
-        serializer = MessageSerializer(recent_messages, many=True)
-        return Response(serializer.data)
+    def perform_create(self, serializer):
+        # Handle nested creation - automatically set conversation from URL
+        conversation_id = self.kwargs.get('conversation_pk')
+        if conversation_id:
+            conversation = Conversation.objects.get(conversation_id=conversation_id)
+            serializer.save(conversation=conversation)
+        else:
+            serializer.save()
