@@ -42,16 +42,13 @@ class TestGetJson(unittest.TestCase):
     ])
     @patch('utils.requests.get')
     def test_get_json(self, test_url, test_payload, mock_get):
-        """Test get_json returns expected result without making actual HTTP calls"""
-        # Configure the mock
+        """Test get_json returns expected result"""
         mock_response = Mock()
         mock_response.json.return_value = test_payload
         mock_get.return_value = mock_response
 
-        # Call the function
         result = get_json(test_url)
 
-        # Assertions
         mock_get.assert_called_once_with(test_url)
         self.assertEqual(result, test_payload)
 
@@ -61,7 +58,6 @@ class TestMemoize(unittest.TestCase):
 
     def test_memoize(self):
         """Test that memoize decorator caches method results"""
-
         class TestClass:
             """Test class for memoize testing"""
 
@@ -72,7 +68,6 @@ class TestMemoize(unittest.TestCase):
             def a_property(self):
                 return self.a_method()
 
-        # Create instance and mock a_method
         with patch.object(TestClass, 'a_method') as mock_method:
             mock_method.return_value = 42
             test_instance = TestClass()
