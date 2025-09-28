@@ -1,6 +1,10 @@
 # messaging_app/chats/serializers.py
 from rest_framework import serializers
-from .models import User, Conversation, Message
+from django.contrib.auth import get_user_model
+from .models import Conversation, Message
+
+# Use Django's get_user_model to work with custom user model
+User = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -58,4 +62,4 @@ class ConversationCreateSerializer(serializers.ModelSerializer):
 class MessageCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message
-        fields = ['message_body']
+        fields = ['message_body', 'conversation']
