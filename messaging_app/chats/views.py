@@ -21,7 +21,7 @@ except ImportError:
     ConversationFilter = None
 
 class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.all()
+    queryset = User.objects.all()  # Add this line
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
@@ -36,6 +36,7 @@ class UserViewSet(viewsets.ModelViewSet):
         return User.objects.all()
 
 class ConversationViewSet(viewsets.ModelViewSet):
+    queryset = Conversation.objects.all()  # Add this line
     serializer_class = ConversationSerializer
     permission_classes = [IsAuthenticated, IsParticipantOfConversation]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
@@ -140,6 +141,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
         return paginator.get_paginated_response(serializer.data)
 
 class MessageViewSet(viewsets.ModelViewSet):
+    queryset = Message.objects.all()  # Add this line
     serializer_class = MessageSerializer
     permission_classes = [IsAuthenticated, IsMessageOwnerOrParticipant]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
