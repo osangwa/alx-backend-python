@@ -4,9 +4,9 @@ from rest_framework.routers import DefaultRouter
 from .views import ConversationViewSet, MessageViewSet, UserViewSet
 
 router = DefaultRouter()
-router.register('conversations', ConversationViewSet)
-router.register('messages', MessageViewSet)
-router.register('users', UserViewSet)
+router.register('conversations', ConversationViewSet, basename='conversation')
+router.register('messages', MessageViewSet, basename='message')
+router.register('users', UserViewSet, basename='user')
 
 urlpatterns = [
     path('', include(router.urls)),

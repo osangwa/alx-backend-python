@@ -11,7 +11,7 @@ from .serializers import (
     UserSerializer, ConversationDetailSerializer
 )
 from .permissions import IsParticipantOfConversation, IsMessageOwnerOrParticipant, IsOwnerOrReadOnly
-from .pagination import MessagePagination
+from .pagination import MessagePagination, ConversationPagination
 
 # Import filters conditionally to avoid circular imports
 try:
@@ -42,6 +42,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
     search_fields = ['participants__first_name', 'participants__last_name', 'participants__email']
     ordering_fields = ['created_at']
+    pagination_class = ConversationPagination
     
     # Set filterset_class conditionally
     @property
