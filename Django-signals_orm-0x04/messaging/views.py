@@ -16,22 +16,46 @@ class ConversationListView(View):
         # Get messages for the current user with optimization
         received_messages = Message.objects.filter(
             receiver=request.user
-        ).select_related('sender').prefetch_related('replies')
+        ).select_related('sender').prefetch_related('replies').only(
+            'id', 'content', 'timestamp', 'read', 'edited', 'sender__username'
+        )
         
         sent_messages = Message.objects.filter(
             sender=request.user
-        ).select_related('receiver').prefetch_related('replies')
+        ).select_related('receiver').prefetch_related('replies').only(
+            'id', 'content', 'timestamp', 'read', 'edited', 'receiver__username'
+        )
         
-        # Get unread messages count using custom manager
-        unread_count = Message.unread_messages.for_user(request.user).count()
+        # Get unread messages count using custom manager with .only() optimization
+        unread_count = Message.unread.unread_for_user(request.user).count()
+        
+        # Get unread messages for display using custom manager with .only()
+        unread_messages = Message.unread.unread_for_user(request.user)
         
         context = {
             'received_messages': received_messages,
             'sent_messages': sent_messages,
             'unread_count': unread_count,
+            'unread_messages': unread_messages,
         }
         
         return render(request, 'messaging/conversations.html', context)
+
+@method_decorator(login_required, name='dispatch')
+@method_decorator(cache_page(60), name='dispatch')
+class UnreadMessagesView(View):
+    """View to display only unread messages using custom manager"""
+    
+    def get(self, request):
+        # Use custom manager to get unread messages for the user with .only() optimization
+        unread_messages = Message.unread.unread_for_user(request.user)
+        
+        context = {
+            'unread_messages': unread_messages,
+            'unread_count': unread_messages.count(),
+        }
+        
+        return render(request, 'messaging/unread_messages.html', context)
 
 @method_decorator(login_required, name='dispatch')
 @method_decorator(cache_page(60), name='dispatch')
@@ -41,12 +65,16 @@ class ThreadDetailView(View):
     def get(self, request, message_id):
         message = get_object_or_404(
             Message.objects.select_related('sender', 'receiver', 'edited_by')
-                          .prefetch_related('replies__sender', 'replies__receiver', 'replies__edited_by'),
+                          .prefetch_related('replies__sender', 'replies__receiver', 'replies__edited_by')
+                          .only('id', 'content', 'timestamp', 'edited', 'sender__username', 
+                                'receiver__username', 'edited_by__username'),
             id=message_id
         )
         
-        # Get message history if any
-        history = message.history.all().select_related('edited_by').order_by('-edited_at')
+        # Get message history if any with optimization
+        history = message.history.all().select_related('edited_by').only(
+            'old_content', 'edited_at', 'edited_by__username'
+        ).order_by('-edited_at')
         
         context = {
             'message': message,
@@ -84,7 +112,10 @@ def view_message_history(request, message_id):
         django_messages.error(request, 'You do not have permission to view this message history.')
         return redirect('conversations')
     
-    history = MessageHistory.objects.filter(message=message).select_related('edited_by').order_by('-edited_at')
+    # Use .only() to optimize the query
+    history = MessageHistory.objects.filter(message=message).select_related('edited_by').only(
+        'old_content', 'edited_at', 'edited_by__username'
+    ).order_by('-edited_at')
     
     context = {
         'message': message,
@@ -92,6 +123,16 @@ def view_message_history(request, message_id):
     }
     
     return render(request, 'messaging/message_history.html', context)
+
+@login_required
+def mark_as_read(request, message_id):
+    """View to mark a message as read"""
+    message = get_object_or_404(Message.unread.unread_for_user(request.user), id=message_id)
+    message.read = True
+    message.save()
+    
+    django_messages.success(request, 'Message marked as read!')
+    return redirect('unread_messages')
 
 @login_required
 def delete_user(request):

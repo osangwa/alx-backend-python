@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from .managers import MessageManager, UnreadMessagesManager
 
 class Message(models.Model):
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages')
@@ -11,6 +12,10 @@ class Message(models.Model):
     edited = models.BooleanField(default=False)
     edited_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='edited_messages')
     parent_message = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='replies')
+    
+    # Use custom manager
+    objects = MessageManager()
+    unread = UnreadMessagesManager()
     
     def __str__(self):
         return f"From {self.sender} to {self.receiver}: {self.content[:20]}..."
@@ -32,20 +37,3 @@ class MessageHistory(models.Model):
     
     def __str__(self):
         return f"History for message {self.message.id} edited by {self.edited_by} at {self.edited_at}"
-
-class UnreadMessagesManager(models.Manager):
-    def get_queryset(self):
-        return super().get_queryset().filter(read=False)
-    
-    def for_user(self, user):
-        return self.filter(receiver=user)
-
-class MessageManager(models.Manager):
-    def get_queryset(self):
-        return super().get_queryset()
-    
-    def unread_messages(self):
-        return UnreadMessagesManager()
-
-Message.add_to_class('objects', MessageManager())
-Message.add_to_class('unread_messages', UnreadMessagesManager())

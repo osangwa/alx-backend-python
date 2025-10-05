@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Unread Messages</title>
+</head>
+<body>
+    <h1>Your Unread Messages</h1>
+    
+    {% if unread_messages %}
+        <p>You have {{ unread_count }} unread message(s):</p>
+        
+        <div class="unread-messages">
+            {% for message in unread_messages %}
+            <div class="message" style="border: 1px solid #ccc; padding: 10px; margin: 10px 0;">
+                <p><strong>From:</strong> {{ message.sender.username }}</p>
+                <p><strong>Content:</strong> {{ message.content }}</p>
+                <p><strong>Received:</strong> {{ message.timestamp }}</p>
+                
+                <div class="actions">
+                    <a href="{% url 'mark_as_read' message.id %}">Mark as Read</a> | 
+                    <a href="{% url 'thread_detail' message.id %}">View Thread</a> | 
+                    <a href="{% url 'edit_message' message.id %}">Reply</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p>No unread messages! 🎉</p>
+    {% endif %}
+    
+    <br>
+    <a href="{% url 'conversations' %}">View All Conversations</a>
+</body>
+</html>

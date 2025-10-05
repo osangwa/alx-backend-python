@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Your Conversations</title>
+</head>
+<body>
+    <h1>Your Messages</h1>
+    
+    <div class="stats">
+        <p>You have <strong>{{ unread_count }}</strong> unread message(s). 
+           <a href="{% url 'unread_messages' %}">View Unread Messages</a>
+        </p>
+    </div>
+    
+    <h2>Received Messages</h2>
+    {% if received_messages %}
+        {% for message in received_messages %}
+        <div class="message" style="border: 1px solid #ccc; padding: 10px; margin: 10px 0;">
+            <p><strong>From:</strong> {{ message.sender.username }}</p>
+            <p><strong>Content:</strong> {{ message.content }}</p>
+            <p><strong>Received:</strong> {{ message.timestamp }}</p>
+            {% if not message.read %}<span style="color: red;">UNREAD</span>{% endif %}
+            <a href="{% url 'thread_detail' message.id %}">View Thread</a>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p>No received messages.</p>
+    {% endif %}
+    
+    <h2>Sent Messages</h2>
+    {% if sent_messages %}
+        {% for message in sent_messages %}
+        <div class="message" style="border: 1px solid #ccc; padding: 10px; margin: 10px 0;">
+            <p><strong>To:</strong> {{ message.receiver.username }}</p>
+            <p><strong>Content:</strong> {{ message.content }}</p>
+            <p><strong>Sent:</strong> {{ message.timestamp }}</p>
+            <a href="{% url 'thread_detail' message.id %}">View Thread</a>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p>No sent messages.</p>
+    {% endif %}
+</body>
+</html>
