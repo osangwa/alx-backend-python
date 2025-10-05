@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Delete Account</title>
+</head>
+<body>
+    <h1>Delete Your Account</h1>
+    
+    <div class="warning">
+        <h3>⚠️ Warning: This action cannot be undone!</h3>
+        <p>Deleting your account will permanently remove:</p>
+        <ul>
+            <li>All messages you sent or received</li>
+            <li>All your notifications</li>
+            <li>All message edit history</li>
+            <li>Your user profile and account information</li>
+        </ul>
+    </div>
+    
+    <form method="post">
+        {% csrf_token %}
+        <p>Are you sure you want to delete your account?</p>
+        <button type="submit" style="background-color: red; color: white;">Yes, Delete My Account</button>
+        <a href="{% url 'conversations' %}">Cancel</a>
+    </form>
+</body>
+</html>

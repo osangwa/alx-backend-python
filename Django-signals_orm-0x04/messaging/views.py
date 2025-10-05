@@ -4,6 +4,7 @@ from django.views.decorators.cache import cache_page
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.contrib import messages as django_messages
+from django.contrib.auth import logout
 from .models import Message, User, MessageHistory
 
 @method_decorator(login_required, name='dispatch')
@@ -94,11 +95,17 @@ def view_message_history(request, message_id):
 
 @login_required
 def delete_user(request):
-    """View to delete user account"""
+    """View to delete user account and clean up related data"""
     if request.method == 'POST':
         user = request.user
+        
+        # The post_delete signal will handle cleaning up related data
         user.delete()
-        # User will be logged out automatically
+        
+        # Logout the user after deletion
+        logout(request)
+        
+        django_messages.success(request, 'Your account and all associated data have been deleted successfully.')
         return render(request, 'messaging/account_deleted.html')
     
     return render(request, 'messaging/confirm_delete.html')

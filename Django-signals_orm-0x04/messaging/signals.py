@@ -34,6 +34,17 @@ def log_message_edit(sender, instance, **kwargs):
 @receiver(post_delete, sender=User)
 def cleanup_user_data(sender, instance, **kwargs):
     """Clean up related data when a user is deleted"""
-    # Messages, notifications, and message histories will be deleted 
-    # automatically due to CASCADE, but we can add additional cleanup here
-    pass
+    # Delete all messages sent or received by the user
+    Message.objects.filter(sender=instance).delete()
+    Message.objects.filter(receiver=instance).delete()
+    
+    # Delete all notifications for the user
+    Notification.objects.filter(user=instance).delete()
+    
+    # Delete all message history entries edited by the user
+    MessageHistory.objects.filter(edited_by=instance).delete()
+    
+    # Also delete any notifications that reference messages from deleted user
+    # This handles the case where messages might be deleted via CASCADE but notifications remain
+    Notification.objects.filter(message__sender=instance).delete()
+    Notification.objects.filter(message__receiver=instance).delete()

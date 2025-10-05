@@ -6,6 +6,7 @@ class SignalTests(TestCase):
     def setUp(self):
         self.user1 = User.objects.create_user('user1', 'user1@test.com', 'password')
         self.user2 = User.objects.create_user('user2', 'user2@test.com', 'password')
+        self.user3 = User.objects.create_user('user3', 'user3@test.com', 'password')
     
     def test_notification_created_on_new_message(self):
         """Test that a notification is created when a new message is sent"""
@@ -41,6 +42,48 @@ class SignalTests(TestCase):
         self.assertEqual(history.old_content, "Original content")
         self.assertEqual(history.edited_by, self.user1)
         self.assertTrue(message.edited)
+
+    def test_user_deletion_cleanup(self):
+        """Test that all user-related data is deleted when a user is deleted"""
+        # Create messages
+        message1 = Message.objects.create(
+            sender=self.user1,
+            receiver=self.user2,
+            content="Message from user1 to user2"
+        )
+        message2 = Message.objects.create(
+            sender=self.user2,
+            receiver=self.user1,
+            content="Message from user2 to user1"
+        )
+        
+        # Create notifications
+        notification1 = Notification.objects.create(user=self.user2, message=message1)
+        notification2 = Notification.objects.create(user=self.user1, message=message2)
+        
+        # Edit a message to create history
+        message1.content = "Edited content"
+        message1.edited_by = self.user1
+        message1.save()
+        
+        # Verify data exists before deletion
+        self.assertEqual(Message.objects.filter(sender=self.user1).count(), 1)
+        self.assertEqual(Message.objects.filter(receiver=self.user1).count(), 1)
+        self.assertEqual(Notification.objects.filter(user=self.user1).count(), 1)
+        self.assertEqual(MessageHistory.objects.filter(edited_by=self.user1).count(), 1)
+        
+        # Delete user1
+        self.user1.delete()
+        
+        # Verify all user1 related data is deleted
+        self.assertEqual(Message.objects.filter(sender=self.user1).count(), 0)
+        self.assertEqual(Message.objects.filter(receiver=self.user1).count(), 0)
+        self.assertEqual(Notification.objects.filter(user=self.user1).count(), 0)
+        self.assertEqual(MessageHistory.objects.filter(edited_by=self.user1).count(), 0)
+        
+        # Verify user2's data is still intact
+        self.assertEqual(Message.objects.filter(sender=self.user2).count(), 1)
+        self.assertEqual(Notification.objects.filter(user=self.user2).count(), 1)
 
 class MessageHistoryUITest(TestCase):
     """Test the message history user interface functionality"""
