@@ -7,6 +7,28 @@ from django.contrib import messages as django_messages
 from django.contrib.auth import logout
 from .models import Message, User, MessageHistory
 
+@login_required
+def edit_message(request, message_id):
+    """View to edit a message"""
+    message = get_object_or_404(Message, id=message_id, sender=request.user)
+    
+    if request.method == 'POST':
+        old_content = message.content
+        new_content = request.POST.get('content')
+        
+        if new_content and new_content != old_content:
+            # Set the editor before saving
+            message.content = new_content
+            message.edited_by = request.user  # Set the user who is editing
+            # Add editor to instance for signal to use
+            message._editor = request.user
+            message.save()
+            
+            django_messages.success(request, 'Message updated successfully!')
+            return redirect('thread_detail', message_id=message_id)
+    
+    return render(request, 'messaging/edit_message.html', {'message': message})
+
 @method_decorator(login_required, name='dispatch')
 @method_decorator(cache_page(60), name='dispatch')
 class ConversationListView(View):
