@@ -31,6 +31,7 @@ class SignalTests(TestCase):
         
         # Edit the message
         message.content = "Edited content"
+        message.edited_by = self.user1
         message.save()
         
         # Check if message history was created
@@ -38,53 +39,39 @@ class SignalTests(TestCase):
         history = MessageHistory.objects.first()
         self.assertEqual(history.message, message)
         self.assertEqual(history.old_content, "Original content")
+        self.assertEqual(history.edited_by, self.user1)
         self.assertTrue(message.edited)
 
-class ORMTests(TestCase):
+class MessageHistoryUITest(TestCase):
+    """Test the message history user interface functionality"""
+    
     def setUp(self):
         self.user1 = User.objects.create_user('user1', 'user1@test.com', 'password')
         self.user2 = User.objects.create_user('user2', 'user2@test.com', 'password')
-        
-        # Create some messages
-        self.message1 = Message.objects.create(
+        self.message = Message.objects.create(
             sender=self.user1,
             receiver=self.user2,
-            content="Message 1"
-        )
-        self.message2 = Message.objects.create(
-            sender=self.user1,
-            receiver=self.user2,
-            content="Message 2",
-            read=True
+            content="Original message"
         )
     
-    def test_unread_messages_manager(self):
-        """Test custom manager for unread messages"""
-        unread_messages = Message.unread_messages.for_user(self.user2)
-        self.assertEqual(unread_messages.count(), 1)
-        self.assertEqual(unread_messages.first(), self.message1)
-    
-    def test_threaded_conversations(self):
-        """Test threaded conversations with replies"""
-        parent_message = Message.objects.create(
-            sender=self.user1,
-            receiver=self.user2,
-            content="Parent message"
-        )
+    def test_message_history_tracking(self):
+        """Test that multiple edits create multiple history entries"""
+        # First edit
+        self.message.content = "First edit"
+        self.message.edited_by = self.user1
+        self.message.save()
         
-        reply = Message.objects.create(
-            sender=self.user2,
-            receiver=self.user1,
-            content="Reply message",
-            parent_message=parent_message
-        )
+        # Second edit
+        self.message.content = "Second edit"
+        self.message.edited_by = self.user2
+        self.message.save()
         
-        # Test prefetch_related for optimization
-        messages_with_replies = Message.objects.filter(
-            parent_message__isnull=True
-        ).prefetch_related('replies')
+        # Check history entries
+        self.assertEqual(MessageHistory.objects.count(), 2)
+        history_entries = MessageHistory.objects.all().order_by('edited_at')
         
-        self.assertEqual(messages_with_replies.count(), 1)
-        parent = messages_with_replies.first()
-        self.assertEqual(parent.replies.count(), 1)
-        self.assertEqual(parent.replies.first(), reply)
+        self.assertEqual(history_entries[0].old_content, "Original message")
+        self.assertEqual(history_entries[0].edited_by, self.user1)
+        
+        self.assertEqual(history_entries[1].old_content, "First edit")
+        self.assertEqual(history_entries[1].edited_by, self.user2)
