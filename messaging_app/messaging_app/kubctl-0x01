@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# kubctl-0x01 - Scaling and load testing script
+
+echo "Starting scaling and load testing..."
+
+# Scale the deployment to 3 replicas
+echo "Scaling deployment to 3 replicas..."
+kubectl scale deployment django-messaging-app --replicas=3
+
+# Wait for pods to be ready
+echo "Waiting for pods to be ready..."
+kubectl wait --for=condition=ready pod -l app=django-messaging --timeout=120s
+
+# Verify multiple pods are running
+echo "Current running pods:"
+kubectl get pods -l app=django-messaging
+
+# Check if metrics server is available for resource monitoring
+if kubectl top nodes &> /dev/null; then
+    echo "Monitoring resource usage:"
+    kubectl top pods -l app=django-messaging
+else
+    echo "Metrics server not available. Installing..."
+    minikube addons enable metrics-server
+    sleep 30
+    echo "Resource usage:"
+    kubectl top pods -l app=django-messaging
+fi
+
+# Get service URL for load testing
+echo "Setting up port forwarding for load testing..."
+kubectl port-forward service/django-messaging-service 8000:8000 &
+PORT_FORWARD_PID=$!
+
+# Wait for port forwarding to be established
+sleep 5
+
+# Check if wrk is available
+if command -v wrk &> /dev/null; then
+    echo "Starting load testing with wrk..."
+    wrk -t4 -c100 -d30s http://localhost:8000/health/
+else
+    echo "wrk not available, using curl for basic testing..."
+    for i in {1..10}; do
+        curl -s http://localhost:8000/health/ > /dev/null && echo "Request $i: Success" || echo "Request $i: Failed"
+        sleep 1
+    done
+fi
+
+# Kill port forwarding
+kill $PORT_FORWARD_PID
+
+echo "Scaling and testing completed!"
