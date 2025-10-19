@@ -1,0 +1,14 @@
+# Enable ingress controller
+minikube addons enable ingress
+
+# Apply ingress configuration
+kubectl apply -f ingress.yaml
+
+# Verify ingress
+kubectl get ingress
+
+# Check ingress controller pods
+kubectl get pods -n ingress-nginx
+
+# Test the ingress (add to /etc/hosts: 127.0.0.1 messaging-app.local)
+curl http://messaging-app.local/health/

@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# kubctl-0x02 - Blue-green deployment script
+
+echo "Starting blue-green deployment..."
+
+# Deploy blue version
+echo "Deploying blue version..."
+kubectl apply -f blue_deployment.yaml
+
+# Wait for blue deployment to be ready
+echo "Waiting for blue deployment to be ready..."
+kubectl wait --for=condition=available deployment/django-messaging-blue --timeout=180s
+
+# Deploy green version
+echo "Deploying green version..."
+kubectl apply -f green_deployment.yaml
+
+# Wait for green deployment to be ready
+echo "Waiting for green deployment to be ready..."
+kubectl wait --for=condition=available deployment/django-messaging-green --timeout=180s
+
+# Check logs for errors in green version
+echo "Checking logs for green deployment..."
+GREEN_PODS=$(kubectl get pods -l version=2.0 -o name | head -1)
+if [ -n "$GREEN_PODS" ]; then
+    kubectl logs $GREEN_PODS --tail=20
+else
+    echo "No green pods found!"
+    exit 1
+fi
+
+# Apply the service (initially pointing to blue)
+echo "Applying service configuration..."
+kubectl apply -f kubeservice.yaml
+
+# Verify both deployments are running
+echo "Blue deployment status:"
+kubectl get deployment django-messaging-blue
+
+echo "Green deployment status:"
+kubectl get deployment django-messaging-green
+
+echo "Blue-green deployment setup completed!"
+echo "To switch traffic: update selector in kubeservice.yaml to version: \"2.0\""
