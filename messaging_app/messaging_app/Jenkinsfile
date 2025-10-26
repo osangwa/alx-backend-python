@@ -6,7 +6,6 @@ pipeline {
     }
     
     environment {
-        DOCKERHUB_CREDENTIALS = credentials('docker-hub-credentials')
         GITHUB_CREDENTIALS = credentials('github-credentials')
     }
     
@@ -21,55 +20,70 @@ pipeline {
         
         stage('Setup Python') {
             steps {
-                sh 'python --version'
-                sh 'pip --version'
+                sh 'python3 --version'
+                sh 'pip3 --version'
             }
         }
         
         stage('Install Dependencies') {
             steps {
                 dir('messaging_app') {
-                    sh 'pip install -r requirements.txt'
+                    sh 'pip3 install -r requirements.txt'
                 }
             }
         }
         
-        stage('Run Tests') {
+        stage('Run Tests with pytest') {
             steps {
                 dir('messaging_app') {
-                    sh 'python manage.py test --noinput'
+                    sh 'python3 -m pytest --junitxml=test-reports/results.xml'
                 }
             }
             post {
                 always {
-                    junit 'messaging_app/test-reports/*.xml'
+                    junit 'messaging_app/test-reports/results.xml'
                 }
             }
         }
         
-        stage('Test Report') {
+        stage('Generate Test Report') {
             steps {
-                publishHTML([
-                    allowMissing: false,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true,
-                    reportDir: 'messaging_app/test-reports',
-                    reportFiles: 'index.html',
-                    reportName: 'Test Report'
-                ])
+                script {
+                    // Ensure test reports directory exists
+                    sh 'mkdir -p messaging_app/test-reports'
+                    
+                    // Generate HTML report from pytest results
+                    sh '''
+                    cd messaging_app
+                    python3 -m pytest --html=test-reports/report.html --self-contained-html
+                    '''
+                }
             }
         }
     }
     
     post {
         always {
+            // Archive test results
+            archiveArtifacts artifacts: 'messaging_app/test-reports/**/*', allowEmptyArchive: true
+            
+            // Publish HTML report
+            publishHTML([
+                allowMissing: true,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                reportDir: 'messaging_app/test-reports',
+                reportFiles: 'report.html',
+                reportName: 'Pytest Test Report'
+            ])
+            
             cleanWs()
         }
         success {
-            echo 'Pipeline completed successfully!'
+            echo '✅ Pipeline completed successfully! All tests passed.'
         }
         failure {
-            echo 'Pipeline failed!'
+            echo '❌ Pipeline failed! Check the test reports for details.'
         }
     }
 }
