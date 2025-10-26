@@ -1,0 +1,93 @@
+name: Django CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: messaging_db
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-django coverage flake8
+    
+    - name: Run flake8 linting
+      run: |
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    
+    - name: Setup test database
+      run: |
+        mysql -h 127.0.0.1 -P 3306 -u root -proot -e "CREATE DATABASE IF NOT EXISTS test_messaging_db;"
+    
+    - name: Run migrations
+      env:
+        DATABASE_URL: mysql://root:root@127.0.0.1:3306/messaging_db
+      run: |
+        python manage.py migrate
+    
+    - name: Run tests with coverage
+      env:
+        DATABASE_URL: mysql://root:root@127.0.0.1:3306/test_messaging_db
+        SECRET_KEY: test-secret-key
+        DEBUG: 'True'
+      run: |
+        coverage run --source='.' manage.py test
+        coverage report
+        coverage html
+    
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report
+        path: htmlcov/
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: test-reports/
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Run security check
+      run: |
+        pip install bandit
+        bandit -r . -f html -o security-report.html || true
+    
+    - name: Upload security report
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-report
+        path: security-report.html
