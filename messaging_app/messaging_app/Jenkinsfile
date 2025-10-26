@@ -27,16 +27,18 @@ pipeline {
         
         stage('Install Dependencies') {
             steps {
-                dir('messaging_app') {
-                    sh 'pip3 install -r requirements.txt'
+                script {
+                    // Explicitly reference messaging_app/requirements.txt
+                    sh 'pip3 install -r messaging_app/requirements.txt'
                 }
             }
         }
         
         stage('Run Tests with pytest') {
             steps {
-                dir('messaging_app') {
-                    sh 'python3 -m pytest --junitxml=test-reports/results.xml'
+                script {
+                    // Run pytest from the messaging_app directory
+                    sh 'cd messaging_app && python3 -m pytest --junitxml=test-reports/results.xml'
                 }
             }
             post {
@@ -49,14 +51,11 @@ pipeline {
         stage('Generate Test Report') {
             steps {
                 script {
-                    // Ensure test reports directory exists
+                    // Create test reports directory
                     sh 'mkdir -p messaging_app/test-reports'
                     
-                    // Generate HTML report from pytest results
-                    sh '''
-                    cd messaging_app
-                    python3 -m pytest --html=test-reports/report.html --self-contained-html
-                    '''
+                    // Generate HTML report
+                    sh 'cd messaging_app && python3 -m pytest --html=test-reports/report.html --self-contained-html'
                 }
             }
         }
@@ -76,14 +75,12 @@ pipeline {
                 reportFiles: 'report.html',
                 reportName: 'Pytest Test Report'
             ])
-            
-            cleanWs()
         }
         success {
-            echo '✅ Pipeline completed successfully! All tests passed.'
+            echo '✅ Pipeline completed successfully!'
         }
         failure {
-            echo '❌ Pipeline failed! Check the test reports for details.'
+            echo '❌ Pipeline failed!'
         }
     }
 }
