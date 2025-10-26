@@ -1,0 +1,75 @@
+pipeline {
+    agent any
+    
+    tools {
+        python 'python3'
+    }
+    
+    environment {
+        DOCKERHUB_CREDENTIALS = credentials('docker-hub-credentials')
+        GITHUB_CREDENTIALS = credentials('github-credentials')
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                url: 'https://github.com/your-username/alx-backend-python.git',
+                credentialsId: 'github-credentials'
+            }
+        }
+        
+        stage('Setup Python') {
+            steps {
+                sh 'python --version'
+                sh 'pip --version'
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+                dir('messaging_app') {
+                    sh 'pip install -r requirements.txt'
+                }
+            }
+        }
+        
+        stage('Run Tests') {
+            steps {
+                dir('messaging_app') {
+                    sh 'python manage.py test --noinput'
+                }
+            }
+            post {
+                always {
+                    junit 'messaging_app/test-reports/*.xml'
+                }
+            }
+        }
+        
+        stage('Test Report') {
+            steps {
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'messaging_app/test-reports',
+                    reportFiles: 'index.html',
+                    reportName: 'Test Report'
+                ])
+            }
+        }
+    }
+    
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed!'
+        }
+    }
+}
